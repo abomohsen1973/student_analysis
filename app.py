@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import numpy as np
+import requests
+from io import BytesIO
 
 # ---------------------- إعدادات التطبيق ----------------------
 st.set_page_config(
@@ -28,45 +30,59 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------- تحميل البيانات من Google Drive ----------------------
-@st.cache_data(ttl=3600)  # تحديث البيانات كل ساعة
+@st.cache_data(ttl=3600)
 def load_data():
-    """تحميل البيانات من ملف CSV على Google Drive"""
+    """تحميل البيانات من ملف Excel على Google Drive"""
     try:
-        # رابط ملف CSV على Google Drive (تأكد من أنه بصيغة uc?id=)
-        CSV_URL = "https://drive.google.com/uc?id=1VTcIyYiV-KwWU9rutlGLsThbiQOIpwpF"
+        # رابط ملف Excel على Google Drive
+        FILE_ID = "1oEMEBkpqFQth_D4skuBY2lAHznSLeim6"
+        URL = f"https://drive.google.com/uc?id={FILE_ID}"
         
-        # قراءة البيانات مع تحديد الترميز العربي
-        df = pd.read_csv(CSV_URL, usecols=range(19), encoding='utf-8')
+        # تحميل الملف كبايتس
+        response = requests.get(URL)
+        excel_data = BytesIO(response.content)
         
-        # أسماء الأعمدة المتوقعة
+        # قراءة ملف Excel
+        df = pd.read_excel(excel_data, engine='openpyxl', header=0)
+        
+        # أسماء الأعمدة المتوقعة (تعديلها حسب الأعمدة الفعلية في ملفك)
         column_names = [
-            'الطالب', 'الجنس', 'الصف', 'الفصل الدراسي',
-            'المادة1', 'المادة2', 'المادة3', 'المادة4', 'المادة5', 
-            'المادة6', 'المادة7', 'المادة8', 'المادة9', 'المادة10',
-            'المادة11', 'المادة12', 'المادة13', 'المعدل', 'التقدير العام'
+            'الفصل الدراسي', 'اسم المدرسة', 'الجنس', 'الطالب', 'الصف',
+            'القرآن الكريم والدراسات الإسلامية', 'اللغة العربية',
+            'الدراسات الاجتماعية', 'الرياضيات', 'العلوم',
+            'اللغة الإنجليزية', 'المهارات الرقمية',
+            'التربية البدنية والدفاع عن النفس',
+            'المهارات الحياتية والأسرية', 'التربية الفنية',
+            'السلوك', 'المواظبة', 'المعدل', 'التقدير العام'
         ]
         
         # تعيين أسماء الأعمدة مع التحقق من التوافق
         if len(df.columns) == len(column_names):
             df.columns = column_names
         else:
-            st.warning("عدد الأعمدة في الملف لا يتطابق مع الأعمدة المتوقعة")
+            st.warning(f"عدد الأعمدة في الملف ({len(df.columns)}) لا يتطابق مع الأعمدة المتوقعة ({len(column_names)})")
         
         # تنظيف البيانات
         df = df.replace(['', ' ', 'NaN', 'NA', 'N/A', 'nan', 'null'], np.nan)
         
         # تحويل الأعمدة الرقمية
-        numeric_cols = [col for col in df.columns if col.startswith('المادة') or col == 'المعدل']
+        numeric_cols = [
+            'القرآن الكريم والدراسات الإسلامية', 'اللغة العربية',
+            'الدراسات الاجتماعية', 'الرياضيات', 'العلوم',
+            'اللغة الإنجليزية', 'المهارات الرقمية', 'المعدل'
+        ]
+        
         for col in numeric_cols:
             if col in df.columns:
                 if df[col].dtype == 'object':
-                    df[col] = df[col].str.replace('%', '', regex=False).astype(float)
+                    df[col] = df[col].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
         
         # تحديد المرحلة التعليمية
         if 'الصف' in df.columns:
             df['المرحلة'] = df['الصف'].apply(
-                lambda x: 'ابتدائي' if pd.notna(x) and ('ابتدائي' in str(x) or '1' in str(x) or '2' in str(x) or '3' in str(x)) 
-                else 'متوسط' if pd.notna(x) else 'غير محدد'
+                lambda x: 'ابتدائي' if pd.notna(x) and ('ابتدائي' in str(x) or any(g in str(x) for g in ['1', '2', '3', '4', '5', '6'])) 
+                else 'متوسط' if pd.notna(x) and ('متوسط' in str(x) or any(g in str(x) for g in ['7', '8', '9'])) 
+                else 'غير محدد'
             )
         else:
             df['المرحلة'] = 'غير محدد'
@@ -78,7 +94,7 @@ def load_data():
     
     except Exception as e:
         st.error(f"❌ خطأ في تحميل البيانات: {str(e)}")
-        return pd.DataFrame()  # إرجاع DataFrame فارغ بدلاً من None
+        return pd.DataFrame()
 
 # ---------------------- وظائف مساعدة ----------------------
 def create_bar_chart(data, x, y, title, color=None, barmode='group', text=None):
@@ -152,7 +168,7 @@ def main():
         school = st.selectbox("🏛️ المدرسة:", school_options)
         
         # اختيار المادة
-        subjects = [col for col in data.columns if col.startswith('المادة') and col in data.columns]
+        subjects = [col for col in data.columns if any(x in col for x in ['القرآن', 'اللغة', 'الدراسات', 'الرياضيات', 'العلوم', 'الإنجليزية', 'المهارات'])]
         subject = st.selectbox("📖 المادة:", ["كل المواد"] + sorted(subjects))
         
         # عدد المدارس المعروضة
