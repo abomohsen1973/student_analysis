@@ -245,7 +245,7 @@ if data is not None:
             avg_school_rates.columns = ['اسم المدرسة', 'متوسط المعدل', 'عدد الطلاب']
             avg_school_rates = avg_school_rates[avg_school_rates['عدد الطلاب'] >= 5]
             
-            tab1, tab2 = st.tabs(["أفضل 20 مدرسة", "أسوأ 20 مدرسة"])
+            tab1, tab2 = st.tabs(["أفضل 20 مدرسة", "أقل 20 مدرسة"])
             
             with tab1:
                 top_schools = avg_school_rates.sort_values(by='متوسط المعدل', ascending=False).head(20)
