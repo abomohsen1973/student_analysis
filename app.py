@@ -30,189 +30,167 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------- تحميل البيانات ----------------------
-@st.cache_data(ttl=86400)  # تخزين لمدة 24 ساعة
+@st.cache_data(ttl=86400)
 def load_data():
-    """تحميل البيانات من Google Drive"""
+    """تحميل البيانات من Google Sheets"""
     try:
-        # معلومات الملف
-        FILE_ID = "1oEMEBkpqFQth_D4skuBY2lAHznSLeim6"
-        
-        # روابط تحميل بديلة
-        DOWNLOAD_URLS = [
-            f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=xlsx",
-            f"https://drive.google.com/uc?id={FILE_ID}&export=download",
-            f"https://www.googleapis.com/drive/v3/files/{FILE_ID}?alt=media"
-        ]
+        # تحويل الرابط إلى صيغة التحميل المباشر
+        SHEET_ID = "1oEMEBkpqFQth_D4skuBY2lAHznSLeim6"
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=xlsx"
         
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
             "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         }
         
-        for url in DOWNLOAD_URLS:
-            try:
-                response = requests.get(url, headers=headers, timeout=15)
-                if response.status_code == 200 and response.content.startswith(b'PK'):
-                    excel_data = BytesIO(response.content)
-                    
-                    # قراءة ملف Excel مع تحديد الأعمدة المطلوبة
-                    df = pd.read_excel(
-                        excel_data,
-                        engine='openpyxl',
-                        header=0,
-                        usecols="A:S"  # تحديد الأعمدة من A إلى S
-                    )
-                    
-                    # تنظيف الأسماء
-                    df.columns = df.columns.str.strip()
-                    
-                    # الأعمدة المتوقعة
-                    REQUIRED_COLS = [
-                        'الفصل الدراسي', 'اسم المدرسة', 'الجنس', 'الطالب', 'الصف',
-                        'القرآن الكريم والدراسات الإسلامية', 'اللغة العربية',
-                        'الدراسات الاجتماعية', 'الرياضيات', 'العلوم',
-                        'اللغة الإنجليزية', 'المهارات الرقمية',
-                        'التربية البدنية والدفاع عن النفس',
-                        'المهارات الحياتية والأسرية', 'التربية الفنية',
-                        'السلوك', 'المواظبة', 'المعدل', 'التقدير العام'
-                    ]
-                    
-                    # التحقق من الأعمدة
-                    missing_cols = [col for col in REQUIRED_COLS if col not in df.columns]
-                    if missing_cols:
-                        st.warning(f"الأعمدة الناقصة: {', '.join(missing_cols)}")
-                        return pd.DataFrame()
-                    
-                    # تحويل الأعمدة الرقمية
-                    NUMERIC_COLS = [col for col in REQUIRED_COLS if col not in 
-                                  ['الفصل الدراسي', 'اسم المدرسة', 'الجنس', 'الطالب', 'الصف', 'التقدير العام']]
-                    
-                    for col in NUMERIC_COLS:
-                        df[col] = pd.to_numeric(
-                            df[col].astype(str)
-                            .str.replace('%', '')
-                            .str.replace(',', '.'),
-                            errors='coerce'
-                        )
-                    
-                    # تحديد المرحلة التعليمية
-                    df['المرحلة'] = df['الصف'].apply(
-                        lambda x: 'ابتدائي' if isinstance(x, str) and ('ابتدائي' in x or any(g in x for g in ['1', '2', '3', '4', '5', '6']))
-                        else 'متوسط' if isinstance(x, str) and ('متوسط' in x or any(g in x for g in ['7', '8', '9']))
-                        else 'غير محدد'
-                    )
-                    
-                    # إضافة طابع زمني
-                    df['آخر_تحديث'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    return df
-                
-            except Exception as e:
-                continue
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
         
-        st.error("فشل تحميل الملف من جميع المصادر")
-        return pd.DataFrame()
+        # التحقق من أن الملف صالح
+        if not response.content.startswith(b'PK'):
+            st.error("الملف ليس بصيغة Excel صالحة")
+            return pd.DataFrame()
+            
+        excel_data = BytesIO(response.content)
+        df = pd.read_excel(excel_data, engine='openpyxl')
+        
+        # الأعمدة المتوقعة (يجب تعديلها حسب ملفك)
+        REQUIRED_COLUMNS = [
+            'الفصل الدراسي', 'اسم المدرسة', 'الجنس', 'اسم الطالب', 'الصف',
+            'القرآن الكريم', 'اللغة العربية', 'الرياضيات', 'العلوم',
+            'اللغة الإنجليزية', 'المعدل', 'التقدير العام'
+        ]
+        
+        # التحقق من الأعمدة
+        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_cols:
+            st.error(f"الأعمدة الناقصة: {', '.join(missing_cols)}")
+            return pd.DataFrame()
+        
+        # تحويل الأعمدة الرقمية
+        numeric_cols = ['القرآن الكريم', 'اللغة العربية', 'الرياضيات', 'العلوم', 'اللغة الإنجليزية', 'المعدل']
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(
+                    df[col].astype(str)
+                    .str.replace('%', '')
+                    .str.replace(',', ''),
+                    errors='coerce'
+                )
+        
+        # تحديد المرحلة التعليمية
+        df['المرحلة'] = np.where(
+            df['الصف'].str.contains('ابتدائي|1|2|3|4|5|6'),
+            'ابتدائي',
+            np.where(
+                df['الصف'].str.contains('متوسط|7|8|9'),
+                'متوسط',
+                'غير محدد'
+            )
+        )
+        
+        # إضافة تاريخ التحديث
+        df['آخر تحديث'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        return df
     
+    except requests.exceptions.RequestException as e:
+        st.error(f"خطأ في الاتصال: {str(e)}")
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"خطأ غير متوقع: {str(e)}")
         return pd.DataFrame()
 
 # ---------------------- وظائف التصور ----------------------
-def create_bar_chart(data, x, y, title, color=None, text=None):
-    fig = px.bar(
+def plot_grades_distribution(data):
+    fig = px.pie(
         data,
-        x=x,
-        y=y,
-        color=color,
-        title=title,
-        text=text,
-        template="plotly_white"
+        names='التقدير العام',
+        title='توزيع التقديرات'
     )
-    if text:
-        fig.update_traces(texttemplate='%{text:.1f}', textposition='inside')
-    fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
-    return fig
+    st.plotly_chart(fig, use_container_width=True)
 
-def create_pie_chart(data, names, values, title):
-    return px.pie(
-        data,
-        names=names,
-        values=values,
-        title=title,
-        hole=0.3
+def plot_subject_scores(data):
+    subjects = ['القرآن الكريم', 'اللغة العربية', 'الرياضيات', 'العلوم', 'اللغة الإنجليزية']
+    avg_scores = data[subjects].mean().reset_index()
+    avg_scores.columns = ['المادة', 'المتوسط']
+    
+    fig = px.bar(
+        avg_scores,
+        x='المادة',
+        y='المتوسط',
+        text='المتوسط',
+        title='متوسط الدرجات حسب المادة'
     )
+    fig.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+    st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------- الواجهة الرئيسية ----------------------
 def main():
     st.title("📊 لوحة تحليل أداء الطلاب")
+    
+    # زر التحديث
+    if st.button("🔄 تحديث البيانات"):
+        st.cache_data.clear()
+        st.rerun()
     
     # تحميل البيانات
     with st.spinner('جاري تحميل البيانات...'):
         data = load_data()
     
     if data.empty:
-        st.error("لا يمكن عرض البيانات بسبب مشكلة في التحميل")
+        st.error("""
+        تعذر تحميل البيانات. يرجى:
+        1. التأكد من أن الملف متاح للعامة
+        2. التحقق من اتصال الإنترنت
+        3. تجربة الرابط في متصفح آخر
+        """)
         return
     
-    # ---------------------- الفلاتر ----------------------
-    with st.sidebar:
-        st.header("🔍 خيارات التصفية")
-        
-        # فلتر المرحلة
-        stage = st.radio(
-            "المرحلة التعليمية",
-            options=data['المرحلة'].unique(),
-            horizontal=True
-        )
-        
-        # فلتر الفصل الدراسي
-        semester = st.selectbox(
-            "الفصل الدراسي",
-            options=["الكل"] + sorted(data['الفصل الدراسي'].dropna().unique().tolist())
-        )
-        
-        # فلتر المدرسة
-        school = st.selectbox(
-            "المدرسة",
-            options=["الكل"] + sorted(data['اسم المدرسة'].dropna().unique().tolist())
-        )
+    st.success("تم تحميل البيانات بنجاح!")
     
-    # ---------------------- تصفية البيانات ----------------------
-    filtered_data = data[data['المرحلة'] == stage]
-    if semester != "الكل":
-        filtered_data = filtered_data[filtered_data['الفصل الدراسي'] == semester]
-    if school != "الكل":
-        filtered_data = filtered_data[filtered_data['اسم المدرسة'] == school]
+    # ---------------------- الفلاتر ----------------------
+    st.sidebar.header("خيارات التصفية")
+    
+    selected_stage = st.sidebar.selectbox(
+        "المرحلة التعليمية",
+        options=['الكل'] + sorted(data['المرحلة'].unique().tolist())
+    )
+    
+    selected_semester = st.sidebar.selectbox(
+        "الفصل الدراسي",
+        options=['الكل'] + sorted(data['الفصل الدراسي'].unique().tolist())
+    )
+    
+    # تطبيق الفلاتر
+    filtered_data = data.copy()
+    if selected_stage != 'الكل':
+        filtered_data = filtered_data[filtered_data['المرحلة'] == selected_stage]
+    if selected_semester != 'الكل':
+        filtered_data = filtered_data[filtered_data['الفصل الدراسي'] == selected_semester]
     
     # ---------------------- المؤشرات ----------------------
-    st.subheader("📈 المؤشرات الرئيسية")
-    cols = st.columns(4)
-    with cols[0]:
+    st.subheader("المؤشرات الرئيسية")
+    col1, col2, col3 = st.columns(3)
+    with col1:
         st.metric("عدد الطلاب", len(filtered_data))
-    with cols[1]:
-        avg = filtered_data['المعدل'].mean()
-        st.metric("المتوسط العام", f"{avg:.2f}")
-    with cols[2]:
-        st.metric("آخر تحديث", filtered_data['آخر_تحديث'].iloc[0])
-    with cols[3]:
-        attendance = filtered_data['المواظبة'].mean()
-        st.metric("متوسط المواظبة", f"{attendance:.1f}%")
+    with col2:
+        avg_score = filtered_data['المعدل'].mean()
+        st.metric("المتوسط العام", f"{avg_score:.2f}")
+    with col3:
+        last_update = filtered_data['آخر تحديث'].iloc[0]
+        st.metric("آخر تحديث", last_update)
     
     # ---------------------- التحليلات ----------------------
-    st.subheader("📊 توزيع التقديرات")
-    grade_dist = filtered_data['التقدير العام'].value_counts().reset_index()
-    grade_dist.columns = ['التقدير', 'العدد']
+    st.subheader("توزيع التقديرات")
+    plot_grades_distribution(filtered_data)
     
-    fig1 = create_pie_chart(grade_dist, 'التقدير', 'العدد', "توزيع التقديرات")
-    st.plotly_chart(fig1, use_container_width=True)
+    st.subheader("أداء المواد الدراسية")
+    plot_subject_scores(filtered_data)
     
-    st.subheader("📚 أداء المواد الدراسية")
-    subjects = [col for col in data.columns if any(x in col for x in ['القرآن', 'اللغة', 'الدراسات', 'الرياضيات', 'العلوم'])]
-    subject_avg = filtered_data[subjects].mean().reset_index()
-    subject_avg.columns = ['المادة', 'المتوسط']
-    
-    fig2 = create_bar_chart(subject_avg, 'المادة', 'المتوسط', "متوسط الدرجات حسب المادة", text='المتوسط')
-    st.plotly_chart(fig2, use_container_width=True)
+    # عرض البيانات
+    st.subheader("عرض البيانات")
+    st.dataframe(filtered_data.head())
 
 if __name__ == "__main__":
     main()
