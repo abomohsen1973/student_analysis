@@ -1,21 +1,49 @@
-# Virtual Environment
+# --- البيئات الافتراضية وملفات بايثون ---
 venv/
 env/
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.so
+*.egg-info/
+*.egg
+.python-version
 
-# Streamlit Secrets (غير مطلوب الآن)
-.streamlit/secrets.toml
-.streamlit/config.toml
+# --- إعدادات Streamlit ---
+.streamlit/*.toml  # يغطي جميع ملفات التكوين
+.streamlit/secrets/  # أي أسرار إضافية
 
-# Data Files
+# --- ملفات البيانات والوسائط ---
 *.csv
 *.xlsx
+*.json
 *.log
+*.sqlite3
+*.db
+*.parquet
+*.feather
+*.pickle
 
-# IDE Files
+# --- ملفات IDE وبيئات التطوير ---
 .idea/
 .vscode/
+*.swp
+*.swo
+*.code-workspace
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- أنظمة البناء والحزم ---
+dist/
+build/
+*.dist-info/
+*.tar.gz
+*.whl
+
+# --- ملفات النظام والاختبارات ---
+coverage.xml
+*.cover
+*.py,cover
+pytest_cache/
+.mypy_cache/
