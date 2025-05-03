@@ -280,7 +280,7 @@ if data is not None:
                 bottom_schools = avg_school_rates.sort_values(by='متوسط المعدل', ascending=True).head(20)
                 bottom_schools['الترتيب'] = range(1, len(bottom_schools)+1)
                 
-                st.markdown("### أسوأ 20 مدرسة حسب متوسط المعدل (تصاعدياً)")
+                st.markdown("### أقل 20 مدرسة حسب متوسط المعدل (تصاعدياً)")
                 st.dataframe(
                     bottom_schools[['الترتيب', 'اسم المدرسة', 'متوسط المعدل', 'عدد الطلاب']].style
                         .format({'متوسط المعدل': '{:.2f}%'})
@@ -294,7 +294,7 @@ if data is not None:
                     x='متوسط المعدل',
                     y='اسم المدرسة',
                     orientation='h',
-                    title="أسوأ 20 مدرسة حسب متوسط المعدل",
+                    title="أقل 20 مدرسة حسب متوسط المعدل",
                     labels={'متوسط المعدل': 'متوسط المعدل (%)', 'اسم المدرسة': ''},
                     color='متوسط المعدل',
                     color_continuous_scale='Reds',
